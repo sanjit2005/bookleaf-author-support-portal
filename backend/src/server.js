@@ -6,22 +6,27 @@ import { loadEnvironment } from './config/environment.js';
 import { connectDatabase, disconnectDatabase } from './db/connection.js';
 import { createJwtService } from './auth/jwt.js';
 import { createAIService } from './ai/service.js';
+import { startupDiagnostic } from './config/startup-diagnostics.js';
 // Importing this module never starts a server or opens a connection.
-export async function startServer({loadConfig=loadEnvironment,connect=connectDatabase,disconnect=disconnectDatabase,application=app}={}) {
-  const config=await loadConfig();
-  if(config.httpSecurity)configureHttp(application,config.httpSecurity);
-  if(application.locals) {
-    application.locals.jwtService=createJwtService(config);
-    application.locals.aiService=createAIService({apiKey:config.geminiApiKey,model:config.geminiModel});
-  }
-  let server;
+export async function startServer({loadConfig=loadEnvironment,connect=connectDatabase,disconnect=disconnectDatabase,application=app,reportDiagnostic=entry=>console.error(JSON.stringify(entry))}={}) {
+  let server,connectionAttempted=false,stage='environment_load';
   try {
+    const config=await loadConfig();
+    stage='environment_validation';
+    if(config.httpSecurity)configureHttp(application,config.httpSecurity);
+    if(application.locals) {
+      application.locals.jwtService=createJwtService(config);
+      application.locals.aiService=createAIService({apiKey:config.geminiApiKey,model:config.geminiModel});
+    }
+    stage='database_connection';connectionAttempted=true;
     await connect(config.mongodbUri);
+    stage='http_listener';
     server=application.listen(config.port,'0.0.0.0');
     await once(server,'listening');
-  } catch {
+  } catch(error) {
+    try { reportDiagnostic(startupDiagnostic(stage,error)); } catch { /* logging must not prevent cleanup */ }
     try { if(server) server.close(); } catch { /* still attempt database cleanup */ }
-    try { await disconnect(); } catch { /* sanitized by caller */ }
+    try { if(connectionAttempted) await disconnect(); } catch { /* sanitized by caller */ }
     throw new Error('Backend startup failed');
   }
   let stopping;

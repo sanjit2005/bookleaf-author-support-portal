@@ -1,11 +1,16 @@
 import { httpConfiguration } from './http-security.js';
 import { readFile } from 'node:fs/promises';
 import { parseEnv } from 'node:util';
+import { configurationFailure, StartupDiagnosticError } from './startup-diagnostics.js';
 export function validSigningSecret(value) {
   // Hex encoding of >=32 random bytes. Entropy provenance cannot be proven by validation.
   return typeof value === 'string' && /^[a-f0-9]{64,256}$/i.test(value) && value.length % 2 === 0 && new Set(value.toLowerCase()).size >= 12 && !/^(.{1,16})\1+$/i.test(value);
 }
 export function validateEnvironment(env) {
+  try { return validateConfiguration(env); }
+  catch(error) { throw configurationFailure(error); }
+}
+function validateConfiguration(env) {
   let uri;
   try {
     uri = new URL(env.MONGODB_URI);
@@ -25,6 +30,6 @@ export function validateEnvironment(env) {
 export async function loadEnvironment(env=process.env, path=new URL('../../.env',import.meta.url)) {
   let local={};
   try { local=parseEnv(await readFile(path,'utf8')); }
-  catch(error) { if(error.code!=='ENOENT') throw new Error('Unable to load backend environment configuration'); }
+  catch(error) { if(error.code!=='ENOENT') throw new StartupDiagnosticError('ENVIRONMENT_LOAD_FAILED'); }
   return validateEnvironment({...local,...env});
 }
