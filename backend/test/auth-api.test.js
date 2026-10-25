@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
+import { EventEmitter } from 'node:events';
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -150,6 +151,16 @@ test('authentication HTTP routes with isolated model mocks and no database',asyn
    const healthy=await request('/api/auth/login',{body:{email:'author@example.com',password:'synthetic-invalid-login'}});
    assert.equal(healthy.status,401);
  });
+ await t.test('production without proxy trust still authenticates through bcrypt and returns only the safe identity',async()=>{
+   app.locals.httpSecurity={production:true,trustProxy:false};
+   try {
+     const result=await request('/api/auth/login',{body:{email:' AUTHOR@Example.com ',password:'test-password-only'}});
+     assert.equal(result.status,200);assert.deepEqual(result.body.user,{_id:authorId.toHexString(),email:'author@example.com',role:'author'});
+     assert.deepEqual(service.verify(result.body.accessToken),{userId:authorId.toHexString(),tokenVersion:3});
+     const denied=await request('/api/auth/login',{body:{email:'author@example.com',password:'synthetic-invalid-login'}});
+     assert.equal(denied.status,401);assert.deepEqual(denied.body,{error:'Authentication required or invalid credentials'});
+   } finally {delete app.locals.httpSecurity;}
+ });
 });
 
 test('login rate limiting returns JSON 429 before credential/database processing',async t=>{
@@ -161,4 +172,20 @@ test('login rate limiting returns JSON 429 before credential/database processing
    assert.equal(response.status,i===2?429:401);
    if(i===2){assert.ok(response.headers.get('retry-after'));assert.deepEqual(await response.json(),{error:'Too many login attempts; try again later'});}
  }
+});
+
+test('login admission tracks actual work after client closure and recovers after failure without a shared lockout',async t=>{
+ let rejectRead;const pending=new Promise((_resolve,reject)=>{rejectRead=reject;});let pendingRead=true,limiterCalls=0,reads=0;
+ t.mock.method(User,'findOne',()=>({select:()=>{reads++;return pendingRead?pending:null;}}));
+ const router=createAuthRouter({maxConcurrentLogins:1,loginLimiter:(_req,_res,next)=>{limiterCalls++;next();}});
+ const handler=router.stack.find(layer=>layer.route?.path==='/auth/login').route.stack[0].handle;
+ const req=()=>({body:{email:'synthetic@example.test',password:'synthetic-test-password'},app:{locals:{jwtService:{}}}});
+ const res=()=>{const value=new EventEmitter();value.set=()=>value;value.status=code=>{value.code=code;return value;};value.json=body=>{value.body=body;value.emit('finish');return value;};return value;};
+ const first=res();handler(req(),first,error=>{assert.ok(error);first.status(500).json({error:'Internal server error'});});
+ assert.equal(reads,1);first.destroyed=true;first.emit('close');
+ const blocked=res();handler(req(),blocked,()=>assert.fail('Overload must not reach authentication'));
+ assert.equal(blocked.code,503);assert.deepEqual(blocked.body,{error:'Login is busy; try again shortly'});assert.equal(reads,1);assert.equal(limiterCalls,1);
+ pendingRead=false;rejectRead(new Error('Synthetic database failure'));await new Promise(setImmediate);
+ const recovered=res(),finished=once(recovered,'finish');handler(req(),recovered,error=>assert.fail(error.message));await finished;
+ assert.equal(recovered.code,401);assert.equal(reads,2);assert.equal(limiterCalls,2);
 });

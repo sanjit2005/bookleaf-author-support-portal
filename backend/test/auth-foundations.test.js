@@ -65,6 +65,13 @@ test('startup connects before listening and shutdown closes HTTP then MongoDB on
  const events=[],application=fakeApplication(events);const instance=await startServer({application,loadConfig:async()=>{events.push('config');return {port:5000,mongodbUri:'not-a-real-uri'};},connect:async()=>{events.push('connect');},disconnect:async()=>{events.push('db-close');}});
  assert.deepEqual(events,['config','connect','listen']);await Promise.all([instance.shutdown(),instance.shutdown()]);assert.deepEqual(events,['config','connect','listen','http-close','db-close']);
 });
+test('production startup without proxy CIDRs keeps trust disabled and connects before listening using mocked lifecycle',async()=>{
+ const config=validateEnvironment({...env(),NODE_ENV:'production',CORS_ALLOWED_ORIGINS:'https://portal.example.test'});
+ const events=[],application=fakeApplication(events),settings={};application.locals={};application.set=(key,value)=>{settings[key]=value;};
+ const running=await startServer({application,loadConfig:async()=>config,connect:async()=>events.push('connect'),disconnect:async()=>events.push('db-close')});
+ assert.equal(settings['trust proxy'],false);assert.equal(application.locals.httpSecurity.production,true);
+ assert.deepEqual(events,['connect','listen']);await running.shutdown();assert.deepEqual(events,['connect','listen','http-close','db-close']);
+});
 test('startup failures never listen and sanitize connection failures',async()=>{
  let listened=false,closed=false;const application={listen(){listened=true;}};
  await assert.rejects(startServer({application,loadConfig:async()=>{throw new Error('Invalid configuration');},connect:async()=>{throw new Error('Must not connect');}}));assert.equal(listened,false);

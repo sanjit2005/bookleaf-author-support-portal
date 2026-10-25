@@ -10,7 +10,6 @@ export function httpConfiguration(env,mode='development') {
     catch{return true;}
   }))throw new Error('Invalid CORS_ALLOWED_ORIGINS configuration');
   const proxies=env.TRUSTED_PROXY_CIDRS?.trim()?env.TRUSTED_PROXY_CIDRS.split(',').map(value=>value.trim()):[];
-  if(production&&!proxies.length)throw new Error('TRUSTED_PROXY_CIDRS must identify verified deployment proxies in production');
   const block=new BlockList();
   for(const value of proxies) {
     const [address,prefix,...extra]=value.split('/'),family=isIP(address);
@@ -35,7 +34,10 @@ export function httpSecurity(req,res,next) {
     'Permissions-Policy':'camera=(), microphone=(), geolocation=()',
     // This server serves JSON, not the separately hosted Vite application.
     'Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'; base-uri 'none'"});
-  if(config.production&&req.secure)res.set('Strict-Transport-Security','max-age=31536000');
+  // Production is served through an HTTPS edge (Render redirects HTTP to HTTPS).
+  // Send policy independently of the internal transport or untrusted forwarded
+  // protocol. Browsers ignore HSTS received over HTTP; this does not enable TLS.
+  if(config.production)res.set('Strict-Transport-Security','max-age=31536000');
   res.vary('Origin');
   const origin=req.get('Origin');
   if(origin&&!config.origins.includes(origin))return res.status(403).json({error:'Origin not allowed'});
