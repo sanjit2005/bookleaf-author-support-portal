@@ -1,0 +1,44 @@
+# Dependencies and generated outputs (all packages)
+node_modules/
+dist/
+dist-ssr/
+build/
+coverage/
+.vite/
+.vercel/
+
+# Environment files and local configuration
+.env
+.env.*
+!backend/.env.example
+!frontend/.env.example
+*.local
+.npmrc
+
+# Logs, caches, temporary files
+logs/
+*.log
+.cache/
+tmp/
+*.tmp
+*.tsbuildinfo
+
+# Sensitive credentials and database exports
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json
+secrets/
+backups/
+dump/
+
+# Local editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo

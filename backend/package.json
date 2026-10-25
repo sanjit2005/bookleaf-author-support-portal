@@ -1,0 +1,28 @@
+{
+  "name": "bookleaf-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BookLeaf Author Support API foundation",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "check": "node scripts/check.js",
+    "test": "node --test",
+    "test:integration": "node integration/run.js",
+    "seed": "node --env-file-if-exists=.env src/seed/run.js",
+    "db:indexes": "node --env-file-if-exists=.env src/db/indexes.js",
+    "account:provision": "node src/provision/run.js"
+  },
+  "engines": {
+    "node": "^22.12.0 || >=24.0.0"
+  },
+  "dependencies": {
+    "@google/genai": "2.31.0",
+    "bcrypt": "^6.0.0",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.11.3"
+  }
+}
