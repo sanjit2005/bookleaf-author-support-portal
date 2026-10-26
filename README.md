@@ -4,6 +4,22 @@ An author-support application with separate author and operations workspaces, au
 
 **Submission status:** local development is working; deployment and public repository publication are pending. Two direct Gemini smoke requests passed. Broader AI quality and deployed end-to-end workflows remain unverified. See [test evidence](#8-verification-and-test-evidence) and [assessment access](#12-live-demo-and-assessment-access).
 
+## 🚀 Live Demo & Test Credentials
+
+You can explore the BookLeaf Author Support Portal using the demo accounts below.
+
+### Admin Account
+
+- **Email:** `dummyadmin@gmail.com`
+- **Password:** `@Sanjit12345`
+
+### Author Account
+
+- **Email:** `dummyauthor@gmail.com`
+- **Password:** `@Sanjit12345`
+
+**Important:** These are public demo credentials intended for testing the application. Do not use them for personal or sensitive information.
+
 ## Contents
 
 1. [Overview and features](#1-overview-and-features)
